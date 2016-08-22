@@ -32,7 +32,7 @@ function getPokemon(latitude, longitude) {
 	// * * * TODO: STILL NEED SCAN!!! * * *
 
 	// !!! replace TODO_REPLACE_SERVER_URL before using !!!
-	var server = TODO_REPLACE_SERVER_URL;
+    var server = "https://pgm.chiisana.net";
 	var dataUrl = server + "/raw_data" + 
 		"?pokemon=true&pokestops=true&gyms=true&scanned=false" + 
 		"&swLat=" + (latitude - latitudeOffset) + 
@@ -79,18 +79,33 @@ function getPokemon(latitude, longitude) {
 					console.log('pokemonLongitude is "' + pokemonLongitude + '"');
 
 					var pokemonDistance = getDistance(latitude, longitude, pokemonLatitude, pokemonLongitude);		
+                    
+                    var pokemonUID = pokemon.encounter_id;
+
+                    var pokemonBearing = getBearing(latitude, longitude, pokemonLatitude, pokemonLongitude);
+
 
 					// fails on iOS!
 					// per @katharine:
 					// > PebbleKit JS Android is not to spec.
 					//allNearbyPokemon.push({i, pokemonId, pokemonExpirationTime, pokemonDistance});
 
-					var pokemonData = {
-						"i": i, 
-						"pokemonId": pokemonId, 
-						"pokemonExpirationTime": pokemonExpirationTime, 
-						"pokemonDistance": pokemonDistance
-					};
+                    var pokemonData = {
+							"i": i,
+							"pokemonId": pokemonId,
+							"pokemonExpirationTime": pokemonExpirationTime,
+							"pokemonLatitude": pokemonLatitude,
+							"pokemonLongitude": pokemonLongitude,
+							"pokemonDistance": pokemonDistance,
+							"pokemonBearing": pokemonBearing,
+							"pokemonUID": pokemonUID
+						};
+// 					var pokemonData = {
+// 						"i": i, 
+// 						"pokemonId": pokemonId, 
+// 						"pokemonExpirationTime": pokemonExpirationTime, 
+// 						"pokemonDistance": pokemonDistance
+// 					};
 					allNearbyPokemon.push(pokemonData);
 
 				}
@@ -102,27 +117,38 @@ function getPokemon(latitude, longitude) {
 				    return a.pokemonDistance - b.pokemonDistance;
 				});
 
-				// Assemble dictionary using our keys
-				var dictionary = {};
-
-				// take closest 9 (or fewer if not available; sentinel indicated by pokemonId == 0)
-				var j;
-				for (j = 0; j < 9; j++) {
-
-					if (j < json.pokemons.length - 1) {
-						dictionary["Pokemon" + (j + 1) + "Id"] = allNearbyPokemon[j].pokemonId;
-						dictionary["Pokemon" + (j + 1) + "ExpirationTime"] = allNearbyPokemon[j].pokemonExpirationTime;
-						dictionary["Pokemon" + (j + 1) + "Distance"] = allNearbyPokemon[j].pokemonDistance;								
-					} else {
-						dictionary["Pokemon" + (j + 1) + "Id"] = 0;
-						dictionary["Pokemon" + (j + 1) + "ExpirationTime"] = 0;
-						dictionary["Pokemon" + (j + 1) + "Distance"] = 0;								
-						break;
+				//get rid of duplicates that have the same UID
+					for(var j=0; i<allNearbyPokemon.length-1; j++ ) {
+					  if (allNearbyPokemon[j+1] !== undefined && allNearbyPokemon[j].pokemonId == allNearbyPokemon[j+1].pokemonId && allNearbyPokemon[j].pokemonLatitude == allNearbyPokemon[j+1].pokemonLatitude  && allNearbyPokemon[j].pokemonLongitude == allNearbyPokemon[j+1].pokemonLongitude) {
+					    console.log("removed pokemon at index " + j);
+					    delete allNearbyPokemon[j];
+					    //allNearbyPokemon.splice(i, 1);
+					  }
 					}
 
-				}
+					allNearbyPokemon = allNearbyPokemon.filter( function( el ){ return (typeof el !== "undefined"); } );
 
-				console.log("dictionary: " + JSON.stringify(dictionary));
+					// Assemble dictionary using our keys
+					var dictionary = {};
+
+					// take closest 9 (or fewer if not available; sentinel indicated by pokemonId == 0)
+					var j;
+					for (j = 0; j < 9; j++) {
+
+						if (j < allNearbyPokemon.length) {
+							dictionary["Pokemon" + (j + 1) + "Id"] = allNearbyPokemon[j].pokemonId;
+							dictionary["Pokemon" + (j + 1) + "ExpirationTime"] = allNearbyPokemon[j].pokemonExpirationTime;
+							dictionary["Pokemon" + (j + 1) + "Distance"] = allNearbyPokemon[j].pokemonDistance;
+							dictionary["Pokemon" + (j + 1) + "Bearing"] = allNearbyPokemon[j].pokemonBearing;
+						} else {
+							dictionary["Pokemon" + (j + 1) + "Id"] = 0;
+							dictionary["Pokemon" + (j + 1) + "ExpirationTime"] = 0;
+							dictionary["Pokemon" + (j + 1) + "Distance"] = 0;
+							dictionary["Pokemon" + (j + 1) + "Bearing"] = 0;
+							break;
+						}
+					}
+					console.log("dictionary: " + JSON.stringify(dictionary));
 
 				// Send to Pebble
 				Pebble.sendAppMessage(dictionary,
@@ -224,19 +250,19 @@ function getBearing(myLatitude, myLongitude, pkmnLatitude, pkmnLongitude) {
 
 	var lat1 = myLatitude, lon1 = myLongitude;
 	var lat2 = pkmnLatitude, lon2 = pkmnLongitude;
-	
+
 	var dLat = toRadians(lat2-lat1);
 	var dLon = toRadians(lon2-lon1);
-	
+
 	lat1 = toRadians(lat1);
 	lat2 = toRadians(lat2);
-	
+
 	var y = Math.sin(dLon) * Math.cos(lat2);
 	var x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-	
+
 	bearing = toDegrees(Math.atan2(y,x));
 	if(bearing < 0) bearing = 360-Math.abs(bearing);
-	
+
 	console.log("Start Lat: " + lat1);
 	console.log("Start Lon: " + lon1);
 	console.log("End Lat: " + lat2);
